@@ -12,16 +12,16 @@ except ImportError:
     from instagrapi import Client
     import requests
 
-# --- AYARLAR ---
+# --- AYARLAR (BİLGİLERİN SABİT KALACAK) ---
 TELEGRAM_BOT_TOKEN = "BURAYA_TELEGRAM_BOT_TOKENINI_YAZ"
-MY_INSTAGRAM_USER = "gercek_instagram_kullanici_adin"
-MY_INSTAGRAM_PASS = "gercek_instagram_sifren"
+MY_INSTAGRAM_USER = "gercek_instagram_kullanici_adin"  # Profilin giydirileceği sabit hesabın
+MY_INSTAGRAM_PASS = "gercek_instagram_sifren"          # O sabit hesabın şifresi
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 cl = Client()
 
 def instagram_giris():
-    print("🔐 Instagram'a giriş yapılıyor...")
+    print("🔐 Sabit Instagram hesabına giriş yapılıyor...")
     if os.path.exists("instagram_session.json"):
         try:
             cl.load_settings("instagram_session.json")
@@ -38,30 +38,34 @@ def instagram_giris():
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "👋 Bot hazır! Giydirmek istediğin hedef Instagram kullanıcı adını yazıp gönder.")
+    bot.reply_to(message, "👋 Bot hazır! Bilgilerini kopyalamak (çalmak) istediğin kaynak kullanıcının adını yazıp gönder. Her yeni mesajında o hesabı kopyalayıp senin sabit hesabına giydireceğim.")
 
 @bot.message_handler(func=lambda message: True)
 def profil_giydir(message):
-    hedef_hesap = message.text.strip().replace("@", "")
-    bot.reply_to(message, f"⏳ @{hedef_hesap} profili kopyalanıyor... Lütfen bekleyin.")
+    kaynak_hesap = message.text.strip().replace("@", "")
+    bot.reply_to(message, f"⏳ @{kaynak_hesap} profil bilgileri çekiliyor ve senin hesabına giydiriliyor... Lütfen bekleyin.")
 
     try:
-        hedef_info = cl.user_info_by_username(hedef_hesap)
-        bio = hedef_info.biography if hedef_info.biography else ""
-        isim = hedef_info.full_name if hedef_info.full_name else hedef_hesap
-        resim_url = hedef_info.profile_pic_url
+        # 1. Bilgileri kopyalayacağımız (kaynak) hesaptan verileri çekiyoruz
+        kaynak_info = cl.user_info_by_username(kaynak_hesap)
+        bio = kaynak_info.biography if kaynak_info.biography else ""
+        isim = kaynak_info.full_name if kaynak_info.full_name else kaynak_hesap
+        resim_url = kaynak_info.profile_pic_url
 
+        # Profil fotoğrafını geçici olarak indir
         resim_datasi = requests.get(resim_url).content
-        with open("hedef_profil.jpg", "wb") as f:
+        with open("gecici_profil.jpg", "wb") as f:
             f.write(resim_datasi)
 
+        # 2. Çektiğimiz bilgileri SENİN sabit hesabına (MY_INSTAGRAM_USER) giydiriyoruz
         cl.account_edit(full_name=isim, biography=bio)
-        cl.account_change_picture("hedef_profil.jpg")
+        cl.account_change_picture("gecici_profil.jpg")
 
-        if os.path.exists("hedef_profil.jpg"):
-            os.remove("hedef_profil.jpg")
+        # Geçici resmi siliyoruz
+        if os.path.exists("gecici_profil.jpg"):
+            os.remove("gecici_profil.jpg")
 
-        bot.reply_to(message, f"🎉 Giydirme Başarılı!\n\n👤 İsim: {isim}\n📝 Bio: {bio}")
+        bot.reply_to(message, f"🎉 İşlem Başarılı!\n\nSenin sabit hesabın artık @{kaynak_hesap} gibi görünüyor.\n\n👤 İsim: {isim}\n📝 Bio: {bio}\n\n✨ Yeni bir hesap kopyalamak istersen, sadece kullanıcı adını yazıp göndermen yeterli!")
     except Exception as e:
         bot.reply_to(message, f"❌ Bir hata oluştu: {str(e)}")
 
@@ -69,3 +73,4 @@ if __name__ == "__main__":
     if instagram_giris():
         print("🤖 Telegram Botu aktif...")
         bot.infinity_polling()
+
